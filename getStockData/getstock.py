@@ -46,26 +46,32 @@ def add_info(tweets,neededStock,sameCount):
         tweets.at[sameCount,'Bull'] = 0
 
 
-def main():
-    tweets = pd.read_csv('finalStock.csv',error_bad_lines=False)
+def createStockDf(start, target):
+    #custom = holidays.HolidayBase()
+    #hol = [date(2019,1,1),date(2019,1,21),date(2019,2,18),date(2019,4,19),date(2019,5,27),date(2019,7,4),date(2019,9,2),date(2019,10,14),date(2019,11,28),date(2019,12,25)]
+    #for i in hol:
+        #custom.append(i)    
+    with open(start,'rb') as f:
+        tweets = pd.read_csv(f,error_bad_lines=False)
     tweets.drop(tweets.columns[0],axis=1,inplace = True)
-    
-    if len(tweets.columns) == 11:
-        tweets.columns = ['time','badtext','text','comp','open','high','low','close','volume','increase','Bull']
+    if len(tweets.columns) == 5:
+        tweets.columns = ['time','text','increase','comp','Bull']
         tweets = tweets.sort_values(by = 'comp').reset_index(drop=True)
     else:
         tweets.columns = ['time','badtext','text','comp']
         tweets['open'] = 0.0
-        tweets['high'] = 0.0
+        tweets['high']= 0.0  
         tweets['low'] = 0.0
-        tweets['close'] = 0.0
-        tweets['volume'] = 0.0
+        tweets['close']= 0.0        
+        tweets['volume'] = 0.0      
         tweets['increase'] = 0.0
         tweets['Bull']= 0.0
-        tweets = tweets.sort_values(by = 'comp').reset_index(drop=True)
+    tweets = tweets.sort_values(by = 'comp').reset_index(drop=True)
     done = False
     company = tweets['comp']
     count = 0
+    #with open('testing.csv','wb') as f:
+        #f.write(tweets.to_csv().encode('utf-8'))        
     while not done:
         currentComp = tweets.iloc[count]['comp']
         try:
@@ -78,6 +84,7 @@ def main():
                 symbol = currentSplit[0]
                 stock = stock_info(symbol)
                 stock = stock.set_index('date')
+                stock.sort_values(by = 'date')
             except Exception as inst:
                 same = False
                 print(inst)
@@ -89,36 +96,58 @@ def main():
                 timeWeNeedMinusOne = tweets.iloc[count]['time']
                 datetimeMinusOne = datetime.datetime.strptime(timeWeNeedMinusOne,"%a %b %d %H:%M:%S +0000 %Y")
                 datetimeNeeded = datetimeMinusOne + datetime.timedelta(1)
+                #print(datetimeMinusOne, datetimeNeeded)
                 if datetimeNeeded.weekday() == 5:
                     datetimeNeeded += datetime.timedelta(2)
                 if datetimeNeeded.weekday() == 6:
                     datetimeNeeded += datetime.timedelta(1)
-                try:
-                    find = True
-                    neededStock = stock.loc[datetimeNeeded.strftime("%b %d, %Y")]
-                except:
-                    find = False
-                    count += 1
-                    print('didn\'t find')
-                if find:
+                find = False
+                doIt = True
+                while not find:
+                    try:
+                        find = True
+                        neededStock = stock.loc[datetimeNeeded.strftime("%b %d, %Y")]
+                        doIt = True
+                    except:
+                        lastStock = datetime.datetime.strptime(stock.index[0],"%b %d, %Y")
+                        today = datetime.datetime.today()
+                        if datetime.date(lastStock.year,lastStock.month,lastStock.day) + datetime.timedelta(1) <  datetime.date(today.year,today.month,today.day):
+                            print(datetime.date(lastStock.year,lastStock.month,lastStock.day),  datetime.date(today.year,today.month,today.day))
+                            find = True
+                            doIt = False
+                            same = False
+                        elif datetimeNeeded > datetime.datetime.today():
+                            find = True
+                            doIt = False
+                        else:
+                            find = False
+                            datetimeNeeded += datetime.timedelta(1)
+                        #print(datetimeNeeded)
+                        #count += 1
+                        #print('didn\'t find')
+                if doIt:
                     add_info(tweets,neededStock,count)
                     count += 1
                     if count > len(tweets):
                         done = True
                         tweets.at[count-1,"comp"] = currentSplit[0]
                         same = False
-                        with open('finalStock.csv','wb') as f:
-                            f.write(tweets.to_csv().encode('utf-8'))
+                        #with open(target,'wb') as f:
+                            #f.write(tweets.to_csv().encode('utf-8'))
+                        with open(target,'ab') as f:
+                            f.write(tweets.to_csv().encode('utf-8'))                            
                     elif currentComp == tweets.iloc[count]['comp']:
                         tweets.at[count-1,"comp"] = currentSplit[0]
                     else:
                         tweets.at[count-1,"comp"] = currentSplit[0]
                         same = False
-                        with open('finalStock.csv','wb') as f:
-                            f.write(tweets.to_csv().encode('utf-8'))
+                        with open(target,'wb') as f:
+                            f.write(tweets[['time','text','increase','comp','Bull']].to_csv().encode('utf-8'))
                             print('done with '+currentComp)
+                else:
+                    count += 1
                 
         else:
             count += 1
-main()
-    
+
+#createStockDf('stockTweets.csv','stockTweets.csv')    
